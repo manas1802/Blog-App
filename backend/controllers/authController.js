@@ -20,19 +20,25 @@ export const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = new userModel({ name, email, password: hashedPassword });
-
     await newUser.save();
 
-    // const token = jwt.sign({id: user._id}, process.env.JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { 
+      expiresIn: "7d" 
+    });
 
-    // res.cookie("token", token, {
-    //   httpOnly: true,
-    //   secure: process.env.NODE_ENV === "production",
-    //   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-    //   maxAge: 7 * 24 * 60 * 60 * 1000,
-    // });
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
-    return res.json({ success: true });
+    return res.json({ 
+      success: true,
+      userData: {
+        name: newUser.name
+      }
+    });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -42,23 +48,20 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.json({
-      success: false,
-      message: "Email and password are required",
-    });
+    return res.json({ success: false, message: "Missing details" });
   }
 
   try {
     const user = await userModel.findOne({ email });
 
     if (!user) {
-      return res.json({ success: false, message: "Invalid email" });
+      return res.json({ success: false, message: "User not found" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.json({ success: false, messgae: "Invalid password" });
+      return res.json({ success: false, message: "Invalid credentials" });
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -72,7 +75,12 @@ export const login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      userData: {
+        name: user.name,
+      },
+    });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
@@ -173,46 +181,38 @@ export const resetPassword = async (req, res) => {
 export const sendVerifyOtp = async (req, res) => {
   try {
     const userId = req.user.id;
-
     const user = await userModel.findById(userId);
 
-    if (user.isAccountVerified) {
-      return res.json({ success: false, message: "Account already verified!" });
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
     }
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
 
+    // Save OTP to user
     user.verifyOtp = otp;
-    user.verifyOtpExpireAt = Date.now() + 15 * 60 * 1000;
-
+    user.verifyOtpExpireAt = otpExpiry;
     await user.save();
 
-    const mailOption = {
-      from: process.env.SENDER_EMAIL,
+    // Send email
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM,
       to: user.email,
-      subject: "Account Verification OTP",
-      text: `Your otp is ${otp}. Verify your account using this otp.`,
-    };
-
-    await transporter.sendMail(mailOption);
-
-    res.json({
-      success: true,
-      message: "Verification OTP sent on registered email.",
+      subject: "Verify Your Email",
+      html: `Your verification code is: <strong>${otp}</strong>. Valid for 10 minutes.`,
     });
+
+    res.json({ success: true, message: "Verification code sent" });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }
 };
 
-// Verify the email using OTP
 export const verifyEmail = async (req, res) => {
   const { otp } = req.body;
   const userId = req.user.id;
-
-  if (!userId || !otp) {
-    return res.json({ success: false, message: "Missing Details" });
-  }
 
   try {
     const user = await userModel.findById(userId);
@@ -221,20 +221,20 @@ export const verifyEmail = async (req, res) => {
       return res.json({ success: false, message: "User not found" });
     }
 
-    if (user.verifyOtp === "" || user.verifyOtp !== otp) {
-      return res.json({ success: false, message: "Invalid Otp" });
+    if (user.verifyOtp !== otp) {
+      return res.json({ success: false, message: "Invalid OTP" });
     }
 
-    if (user.verifyOtpExpireAt < Date.now()) {
-      return res.json({ success: false, message: "OTP Expired" });
+    if (Date.now() > user.verifyOtpExpireAt) {
+      return res.json({ success: false, message: "OTP expired" });
     }
 
     user.isAccountVerified = true;
     user.verifyOtp = "";
     user.verifyOtpExpireAt = 0;
-
     await user.save();
-    return res.json({ success: true, message: "Email verified successfully" });
+
+    res.json({ success: true, message: "Email verified successfully" });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }

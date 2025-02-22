@@ -1,12 +1,12 @@
 import blogModel from "../models/blogModel.js";
 
 export const createBlog = async (req, res) => {
-  const { title, content, tags } = req.body;
+  const { title, content, description, category } = req.body;
 
-  if (!title || !content || !tags) {
+  if (!title || !content) {
     return res.json({
       success: false,
-      message: "Title, content and tags are required",
+      message: "Title and content are required",
     });
   }
 
@@ -14,7 +14,8 @@ export const createBlog = async (req, res) => {
     const newBlog = new blogModel({
       title,
       content,
-      tags,
+      description,
+      category,
       author: req.user.id,
     });
 
@@ -23,7 +24,7 @@ export const createBlog = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        message: "Blog updated successfully",
+        message: "Blog created successfully",
         blog: savedBlog,
       },
     });

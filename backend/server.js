@@ -6,10 +6,20 @@ import { connectDB } from "./config/mongodb.js";
 import cookieParser from "cookie-parser";
 import userRouter from "./routes/userRoutes.js";
 import blogRouter from "./routes/blogRoutes.js";
+import cors from "cors";
 
 await connectDB();
 
 const app = express();
+
+
+app.use(cors({
+  origin: 'http://localhost:5173', // Your frontend URL
+  credentials: true, // Required for cookies
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+}));
+
 
 const port = 3000;
 

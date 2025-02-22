@@ -5,13 +5,9 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   resetOtp: { type: String, default: "" },
-  resetOtpExpireAt: { type: Number, default: 0 },
-  verifyOtp: { type: String, default: "" },
-  verifyOtpExpireAt: { type: Number, default: 0 },
-  isAccountVerified: { type: Boolean, default: false },
+  resetOtpExpireAt: { type: Number, default: 0 }
 });
 
-const userModel =
-  mongoose.models.user || new mongoose.model("user", UserSchema);
+const userModel = mongoose.models.user || new mongoose.model("user", UserSchema);
 
 export default userModel;
